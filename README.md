@@ -1,2 +1,2 @@
-# Clanker-My-shot-on-Jarvis-
+# Clanker (My shot on Jarvis)
 Just like jarvis from iron man but a bit more personalized to me....
