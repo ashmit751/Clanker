@@ -257,7 +257,7 @@ function renderMessages(messages) {
 
 function renderMessageHTML(msg) {
   const isUser = msg.role === "user";
-  const tag    = isUser ? "[ STARK ]" : "[ CLANKER ]";
+  const tag    = isUser ? "[ ASHMIT ]" : "[ CLANKER ]";
   const time   = msg.created_at
     ? new Date(msg.created_at).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false})
     : "";
