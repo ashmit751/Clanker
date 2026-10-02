@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clanker — Local AI Assistant</title>
+  <meta name="description" content="Clanker: a fast, private, local AI desktop assistant powered by Ollama." />
+  <link rel="stylesheet" href="/assets/style.css" />
+  <!-- Marked.js for markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="app-shell">
+
+    <!-- ═══════════════════════════════════════════════════════
+         SIDEBAR
+    ═══════════════════════════════════════════════════════ -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">⚡</div>
+        <div>
+          <div class="logo-text">Clanker</div>
+          <div class="logo-sub">Local AI</div>
+        </div>
+      </div>
+
+      <!-- Main navigation -->
+      <nav class="sidebar-nav">
+        <button class="nav-item active" id="nav-dashboard" onclick="showPage('dashboard')">
+          <span class="icon">🏠</span> Dashboard
+        </button>
+        <button class="nav-item" id="nav-chat" onclick="showPage('chat')">
+          <span class="icon">💬</span> Chat
+        </button>
+        <button class="nav-item" id="nav-tasks" onclick="showPage('tasks')">
+          <span class="icon">✅</span> Tasks
+        </button>
+        <button class="nav-item" id="nav-memory" onclick="showPage('memory')">
+          <span class="icon">🧠</span> Memory
+        </button>
+        <button class="nav-item" id="nav-settings" onclick="showPage('settings')">
+          <span class="icon">⚙️</span> Settings
+        </button>
+      </nav>
+
+      <!-- Conversations -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-label">Conversations</div>
+        <div class="conversation-list" id="conversation-list">
+          <div class="empty-state" style="padding:12px 8px;font-size:12px;">No conversations yet</div>
+        </div>
+      </div>
+
+      <!-- New chat button -->
+      <div style="padding:0">
+        <button class="new-chat-btn" onclick="newConversation()">
+          <span>＋</span> New Chat
+        </button>
+      </div>
+    </aside>
+
+    <!-- ═══════════════════════════════════════════════════════
+         MAIN CONTENT
+    ═══════════════════════════════════════════════════════ -->
+    <main class="main-content">
+
+      <!-- Top Bar -->
+      <div class="topbar">
+        <div class="topbar-title" id="topbar-title">Dashboard</div>
+        <div class="topbar-actions">
+          <!-- Ollama status -->
+          <div class="status-pill" id="ollama-status">
+            <div class="status-dot"></div>
+            <span id="ollama-status-text">Checking...</span>
+          </div>
+
+          <!-- Model selector -->
+          <select class="model-selector" id="model-selector" onchange="selectModel(this.value)">
+            <option value="">Loading...</option>
+          </select>
+
+          <!-- Chat actions (visible in chat view) -->
+          <div id="chat-actions" class="hidden">
+            <button class="icon-btn" title="Clear messages" onclick="clearConversation()">🗑</button>
+            <button class="icon-btn" title="Rename" onclick="renameConversation()">✏️</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── DASHBOARD PAGE ─────────────────────────────── -->
+      <div class="page active" id="page-dashboard">
+        <div class="dashboard-scroll">
+
+          <div class="dashboard-greeting">
+            <div class="greeting-text" id="greeting-text">Loading...</div>
+            <div class="greeting-date" id="greeting-date"></div>
+          </div>
+
+          <div class="dashboard-grid">
+
+            <!-- Today's Tasks -->
+            <div class="dashboard-card">
+              <div class="card-header">
+                <div class="card-title">Today's Tasks</div>
+                <span class="card-badge badge-blue" id="today-count">0</span>
+              </div>
+              <div class="task-list" id="today-task-list">
+                <div class="empty-state">No tasks due today</div>
+              </div>
+            </div>
+
+            <!-- Overdue -->
+            <div class="dashboard-card">
+              <div class="card-header">
+                <div class="card-title">Overdue</div>
+                <span class="card-badge badge-red" id="overdue-count">0</span>
+              </div>
+              <div class="task-list" id="overdue-task-list">
+                <div class="empty-state">No overdue tasks</div>
+              </div>
+            </div>
+
+            <!-- Active Projects -->
+            <div class="dashboard-card">
+              <div class="card-header">
+                <div class="card-title">Active Projects</div>
+                <span class="card-badge badge-purple" id="projects-count">0</span>
+              </div>
+              <div class="project-grid" id="dashboard-projects">
+                <div class="empty-state">No active projects</div>
+              </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="dashboard-card">
+              <div class="card-header">
+                <div class="card-title">Quick Start</div>
+              </div>
+              <button class="quick-start-btn" onclick="newConversation(); showPage('chat')">
+                <span style="font-size:20px">💬</span>
+                Start a New Chat
+              </button>
+              <div style="height:10px"></div>
+              <button class="quick-start-btn" onclick="openAddTaskModal()">
+                <span style="font-size:20px">➕</span>
+                Add a Task
+              </button>
+              <div style="height:10px"></div>
+              <button class="quick-start-btn" onclick="openAddProjectModal()">
+                <span style="font-size:20px">📁</span>
+                New Project
+              </button>
+            </div>
+
+            <!-- Recent Conversations -->
+            <div class="dashboard-card full-width">
+              <div class="card-header">
+                <div class="card-title">Recent Conversations</div>
+              </div>
+              <div id="recent-conversations-list">
+                <div class="empty-state">No conversations yet — start chatting!</div>
+              </div>
+            </div>
+
+          </div><!-- /grid -->
+        </div><!-- /scroll -->
+      </div><!-- /dashboard -->
+
+      <!-- ─── CHAT PAGE ───────────────────────────────────── -->
+      <div class="page" id="page-chat">
+        <div class="chat-view">
+          <div class="messages-container" id="messages-container">
+            <div class="welcome-screen" id="welcome-screen">
+              <div class="welcome-icon">⚡</div>
+              <div class="welcome-title">Clanker is ready</div>
+              <div class="welcome-subtitle">
+                Ask me anything. I can manage tasks, remember things,
+                search your files, and help you stay on top of projects.
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-input-area">
+            <div class="input-wrapper">
+              <textarea
+                class="chat-textarea"
+                id="chat-input"
+                placeholder="Message Clanker…"
+                rows="1"
+                onkeydown="handleInputKeydown(event)"
+                oninput="autoResizeTextarea(this)"
+              ></textarea>
+              <button class="send-btn" id="send-btn" onclick="sendMessage()" title="Send">
+                ➤
+              </button>
+            </div>
+            <div class="input-hint">Enter to send · Shift+Enter for new line</div>
+          </div>
+        </div>
+      </div><!-- /chat -->
+
+      <!-- ─── TASKS PAGE ──────────────────────────────────── -->
+      <div class="page" id="page-tasks">
+        <div class="topbar" style="border-top:none">
+          <div class="tasks-toolbar">
+            <button class="filter-btn active" id="filter-all" onclick="filterTasks('all')">All</button>
+            <button class="filter-btn" id="filter-pending" onclick="filterTasks('pending')">Pending</button>
+            <button class="filter-btn" id="filter-today" onclick="filterTasks('today')">Today</button>
+            <button class="filter-btn" id="filter-overdue" onclick="filterTasks('overdue')">Overdue</button>
+            <button class="filter-btn" id="filter-done" onclick="filterTasks('done')">Done</button>
+          </div>
+          <button class="btn btn-primary" onclick="openAddTaskModal()">＋ Add Task</button>
+        </div>
+        <div class="tasks-scroll">
+          <div id="task-list-container">
+            <div class="empty-state">Loading tasks…</div>
+          </div>
+        </div>
+      </div><!-- /tasks -->
+
+      <!-- ─── MEMORY PAGE ─────────────────────────────────── -->
+      <div class="page" id="page-memory">
+        <div class="topbar" style="border-top:none; justify-content:flex-end">
+          <button class="btn btn-primary" onclick="openAddMemoryModal()">＋ Add Memory</button>
+        </div>
+        <div class="memory-scroll">
+          <div id="memory-list-container">
+            <div class="empty-state">No memories stored yet.</div>
+          </div>
+        </div>
+      </div><!-- /memory -->
+
+      <!-- ─── SETTINGS PAGE ──────────────────────────────── -->
+      <div class="page" id="page-settings">
+        <div class="settings-scroll">
+
+          <!-- Ollama -->
+          <div class="settings-section">
+            <div class="settings-section-title">⚙️ Ollama Configuration</div>
+            <div class="settings-card">
+              <div class="form-group">
+                <label class="form-label">Ollama Host</label>
+                <input type="text" class="form-input" id="setting-host" placeholder="http://localhost:11434" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Model</label>
+                <input type="text" class="form-input" id="setting-model" placeholder="qwen3:8b" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Timeout (seconds)</label>
+                <input type="number" class="form-input" id="setting-timeout" placeholder="120" />
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-primary" onclick="saveOllamaSettings()">Save</button>
+                <button class="btn btn-secondary" onclick="testOllamaConnection()">Test Connection</button>
+              </div>
+              <div id="connection-test-result" style="margin-top:10px;font-size:13px"></div>
+            </div>
+          </div>
+
+          <!-- System Prompt -->
+          <div class="settings-section">
+            <div class="settings-section-title">💬 Assistant Personality</div>
+            <div class="settings-card">
+              <div class="form-group">
+                <label class="form-label">System Prompt</label>
+                <textarea class="form-textarea" id="setting-system-prompt" rows="10" style="font-family:var(--font-mono);font-size:12px"></textarea>
+              </div>
+              <button class="btn btn-primary" onclick="saveSystemPrompt()">Save Prompt</button>
+            </div>
+          </div>
+
+          <!-- Approved Folders -->
+          <div class="settings-section">
+            <div class="settings-section-title">📁 Approved Folders</div>
+            <div class="settings-card">
+              <div id="folders-list" style="margin-bottom:16px">
+                <div class="empty-state">No approved folders configured.</div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <input type="text" class="form-input" id="new-folder-path" placeholder="C:\Users\You\Projects" />
+                <button class="btn btn-primary" onclick="addFolder()" style="white-space:nowrap">Add</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="settings-section">
+            <div class="settings-section-title">⚡ Quick Actions</div>
+            <div class="settings-card">
+              <div id="actions-list" style="margin-bottom:16px">
+                <div class="empty-state">No quick actions configured.</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Name</label>
+                <input type="text" class="form-input" id="new-action-name" placeholder="Open Projects Folder" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Type</label>
+                <select class="form-select" id="new-action-type">
+                  <option value="folder">Folder</option>
+                  <option value="url">URL</option>
+                  <option value="app">Application</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Target</label>
+                <input type="text" class="form-input" id="new-action-target" placeholder="C:\Projects or https://..." />
+              </div>
+              <button class="btn btn-primary" onclick="addAction()">Add Action</button>
+            </div>
+          </div>
+
+          <!-- Projects management -->
+          <div class="settings-section">
+            <div class="settings-section-title">📦 Projects</div>
+            <div class="settings-card">
+              <div id="settings-projects-list" style="margin-bottom:16px">
+                <div class="empty-state">No projects yet.</div>
+              </div>
+              <button class="btn btn-primary" onclick="openAddProjectModal()">＋ New Project</button>
+            </div>
+          </div>
+
+        </div><!-- /scroll -->
+      </div><!-- /settings -->
+
+    </main><!-- /main-content -->
+  </div><!-- /app-shell -->
+</div><!-- /app -->
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODALS
+═══════════════════════════════════════════════════════════ -->
+
+<!-- Add Task Modal -->
+<div class="modal-overlay" id="modal-add-task">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Add Task</div>
+      <button class="modal-close" onclick="closeModal('modal-add-task')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Title *</label>
+        <input type="text" class="form-input" id="task-title-input" placeholder="Task title" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea class="form-textarea" id="task-desc-input" placeholder="Optional details" rows="3"></textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label class="form-label">Priority</label>
+          <select class="form-select" id="task-priority-input">
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Due Date</label>
+          <input type="datetime-local" class="form-input" id="task-due-input" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Project</label>
+        <select class="form-select" id="task-project-input">
+          <option value="">No project</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-task')">Cancel</button>
+      <button class="btn btn-primary" onclick="createTask()">Create Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Memory Modal -->
+<div class="modal-overlay" id="modal-add-memory">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Store Memory</div>
+      <button class="modal-close" onclick="closeModal('modal-add-memory')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Information to Remember *</label>
+        <textarea class="form-textarea" id="memory-content-input" placeholder="e.g. User prefers dark mode and uses Vim keybindings" rows="4"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tags (comma-separated)</label>
+        <input type="text" class="form-input" id="memory-tags-input" placeholder="preference, workflow, project" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-memory')">Cancel</button>
+      <button class="btn btn-primary" onclick="createMemory()">Remember</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Project Modal -->
+<div class="modal-overlay" id="modal-add-project">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">New Project</div>
+      <button class="modal-close" onclick="closeModal('modal-add-project')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Name *</label>
+        <input type="text" class="form-input" id="proj-name-input" placeholder="My Project" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea class="form-textarea" id="proj-desc-input" placeholder="What is this project?" rows="2"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Local Folder Path (optional)</label>
+        <input type="text" class="form-input" id="proj-folder-input" placeholder="C:\Projects\MyProject" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-textarea" id="proj-notes-input" placeholder="Any notes..." rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-project')">Cancel</button>
+      <button class="btn btn-primary" onclick="createProject()">Create Project</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rename Conversation Modal -->
+<div class="modal-overlay" id="modal-rename-conv">
+  <div class="modal" style="width:360px">
+    <div class="modal-header">
+      <div class="modal-title">Rename Conversation</div>
+      <button class="modal-close" onclick="closeModal('modal-rename-conv')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Title</label>
+        <input type="text" class="form-input" id="rename-conv-input" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-rename-conv')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmRenameConversation()">Rename</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>
