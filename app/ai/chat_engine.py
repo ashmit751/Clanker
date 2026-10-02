@@ -30,7 +30,8 @@ async def chat_stream(
     4. Detect and execute tool calls mid-stream
     5. If tools were called, do a follow-up non-streaming call
     6. Save assistant response
-    7. Yield text chunks to caller
+    7. Auto-title the conversation if needed
+    8. Yield text chunks to caller
     """
     model = model or settings.OLLAMA_MODEL
 
@@ -98,3 +99,53 @@ async def chat_stream(
         conversation_service.add_message(db, conversation_id, "assistant", final_text)
     else:
         conversation_service.add_message(db, conversation_id, "assistant", full_response)
+
+    # ── Auto-title ────────────────────────────────────────────────────────────
+    # Refresh message count after saving
+    all_messages = conversation_service.get_messages(db, conversation_id)
+    msg_count = len(all_messages)
+
+    # Title on 2nd message (first exchange complete), then refresh every 6 messages
+    should_title = (msg_count == 2) or (msg_count > 2 and msg_count % 6 == 0)
+    if should_title:
+        await _auto_title(db, conversation_id, all_messages, model)
+
+
+async def _auto_title(db: Session, conversation_id: int, messages: list, model: str) -> None:
+    """
+    Ask Ollama to produce a short conversation title (2-5 words, no punctuation).
+    Runs silently after each eligible response — errors never surface to the user.
+    """
+    try:
+        # Collect user turns only (up to 6) for a compact context snapshot
+        user_turns = [m.content for m in messages if m.role == "user"][:6]
+        transcript = "\n".join(f"- {t[:120]}" for t in user_turns)
+
+        titling_messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a conversation labeler. "
+                    "Reply with ONLY a short title of 2-5 words that captures the main topic. "
+                    "No quotes, no punctuation, no explanation. Just the title words."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Label this conversation:\n{transcript}",
+            },
+        ]
+
+        raw = await ollama_service.chat_complete(model, titling_messages)
+
+        # Sanitize: strip quotes/punctuation, cap at 6 words
+        title = raw.strip().strip('"\'').replace("\n", " ")
+        words = title.split()[:6]
+        title = " ".join(words).strip(" .,!?:;-")
+
+        if title:
+            conversation_service.rename_conversation(db, conversation_id, title)
+            logger.info(f"Auto-titled conversation {conversation_id}: '{title}'")
+
+    except Exception as e:
+        logger.warning(f"Auto-title failed for conversation {conversation_id}: {e}")
